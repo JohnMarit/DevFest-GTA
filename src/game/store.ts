@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { ensureEngine, playBlip, playPickup, playReload, resumeAudio, startMusic, stopMusic } from './audio'
 import { COMBAT, freshMissions, MISSIONS, nearestSafePoint, PISTOL, PLAYER_START } from './content'
+import { cleanName } from './leaderboard'
 import { runtime, SAVE_KEY, vehicleMarks } from './runtime'
 import type { Dialogue, MissionId, Phase, SaveData, ThenAction, Weapon } from './types'
 
@@ -16,6 +17,7 @@ const emptySave = (): SaveData => ({
   ammo: 0,
   reserve: 0,
   elapsedMs: 0,
+  playerName: '',
 })
 
 function readSave(): SaveData | null {
@@ -73,7 +75,7 @@ type GameStore = SaveData & {
   setDanger: (zone: string | null) => void
   addKill: () => void
   respawn: () => void
-  newGame: () => void
+  newGame: (name?: string) => void
   continueGame: () => void
   togglePause: () => void
   quitToMenu: () => void
@@ -151,6 +153,7 @@ function snapshot(state: GameStore): SaveData {
     ammo: state.ammo,
     reserve: state.reserve,
     elapsedMs: runtime.elapsedMs,
+    playerName: state.playerName,
   }
 }
 
@@ -328,8 +331,8 @@ export const useGame = create<GameStore>((set, get) => ({
     })
   },
 
-  newGame: () => {
-    const next = emptySave()
+  newGame: (name) => {
+    const next = { ...emptySave(), playerName: cleanName(name ?? '') }
     set({
       ...next,
       phase: 'loading',

@@ -14,6 +14,7 @@ import {
   routeBetween,
 } from '../game/content'
 import { playFanfare } from '../game/audio'
+import { addScore, cleanName, readBoard, readName, writeName, type ScoreEntry } from '../game/leaderboard'
 import { runtime, vehicleMarks } from '../game/runtime'
 import { useGame } from '../game/store'
 import { TouchControls } from './TouchControls'
@@ -28,6 +29,30 @@ function formatTime(ms: number) {
   const pad = (value: number) => String(value).padStart(2, '0')
   if (hours > 0) return `${hours}:${pad(minutes)}:${pad(seconds)}`
   return `${minutes}:${pad(seconds)}`
+}
+
+function ScoreList({ rows, highlight }: { rows: ScoreEntry[]; highlight?: number | null }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-white/70">No scores yet. Finish the quest and add your name.</p>
+  }
+  return (
+    <ol className="space-y-1.5">
+      {rows.map((row, index) => {
+        const mine = highlight != null && row.at === highlight
+        return (
+          <li
+            key={`${row.at}-${row.name}-${index}`}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2 ${mine ? 'bg-[#f9ab00] text-[#102033]' : 'bg-white/10 text-white'}`}
+          >
+            <span className={`w-6 font-display text-xl ${mine ? 'text-[#102033]' : 'text-[#f9ab00]'}`}>{index + 1}</span>
+            <span className="min-w-0 flex-1 truncate font-extrabold">{row.name}</span>
+            <span className="font-display text-lg">{row.xp.toLocaleString()} XP</span>
+            <span className={`text-xs font-bold tracking-wide ${mine ? 'text-[#102033]/70' : 'text-white/55'}`}>{formatTime(row.elapsedMs)}</span>
+          </li>
+        )
+      })}
+    </ol>
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -363,6 +388,7 @@ function Highlighted({ text }: { text: string }) {
 
 function XpTicker() {
   const xp = useGame((state) => state.xp)
+  const playerName = useGame((state) => state.playerName)
   const previous = useRef(xp)
   const [pops, setPops] = useState<{ id: number; amount: number }[]>([])
   useEffect(() => {
@@ -397,6 +423,7 @@ function XpTicker() {
         <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/15">
           <div className="h-full rounded-full bg-[#f9ab00] transition-[width] duration-300" style={{ width: `${progress * 100}%` }} />
         </div>
+        {playerName && <p className="mt-1.5 truncate text-right text-[11px] font-extrabold tracking-[0.14em] text-white/80">{playerName.toUpperCase()}</p>}
       </div>
     </section>
   )
@@ -983,7 +1010,8 @@ function PauseMenu() {
   const hasPistol = useGame((state) => state.hasPistol)
   const ammo = useGame((state) => state.ammo)
   const reserve = useGame((state) => state.reserve)
-  const [tab, setTab] = useState<'map' | 'missions' | 'controls'>('map')
+  const [tab, setTab] = useState<'map' | 'missions' | 'controls' | 'scores'>('map')
+  const [rows] = useState(readBoard)
   const stats: [string, string][] = [
     ['XP', xp.toLocaleString()],
     ['Level', String(Math.floor(xp / XP_PER_LEVEL) + 1)],
@@ -991,10 +1019,11 @@ function PauseMenu() {
     ['Badges', `${badges}/8`],
     ['Pistol', hasPistol ? `${ammo} / ${reserve}` : 'Not found'],
   ]
-  const tabs: ['map' | 'missions' | 'controls', string][] = [
+  const tabs: ['map' | 'missions' | 'controls' | 'scores', string][] = [
     ['map', 'Map'],
     ['missions', 'Missions'],
     ['controls', 'Controls'],
+    ['scores', 'Scores'],
   ]
   return (
     <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-[#060b12]/70 p-4 backdrop-blur-md">
@@ -1052,6 +1081,68 @@ function PauseMenu() {
           )}
           {tab === 'missions' && <MissionList />}
           {tab === 'controls' && <ControlsCopy />}
+          {tab === 'scores' && (
+            <div>
+              <ScoreList rows={rows} />
+              <p className="mt-2 text-xs text-white/60">Finish the quest to add your name and score. The board is saved on this device.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VictoryBoard({ xp, onAgain, onMenu }: { xp: number; onAgain: (name: string) => void; onMenu: () => void }) {
+  const playerName = useGame((state) => state.playerName)
+  const [name, setName] = useState(playerName || readName())
+  const [rows, setRows] = useState(readBoard)
+  const [posted, setPosted] = useState<number | null>(null)
+  const rank = posted == null ? -1 : rows.findIndex((row) => row.at === posted)
+  return (
+    <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-[#060b12]/80 p-4 backdrop-blur-sm">
+      <div className="hud-glass max-h-[92vh] w-full max-w-lg overflow-auto rounded-3xl p-7 text-white">
+        <p className="text-xs font-extrabold tracking-[0.22em] text-[#8ab4f8]">24 OCTOBER 2026 · SCENIUS HUB · TONGPINY · JUBA</p>
+        <h2 className="font-display mt-2 text-5xl leading-none sm:text-6xl">Welcome to DevFest Juba</h2>
+        <p className="mt-3 text-lg text-white/85">You kept the city online. The keynote can start.</p>
+        <p className="mt-3 text-sm font-bold tracking-[0.18em] text-white/70">FINISHED IN {formatTime(runtime.elapsedMs)}</p>
+        <p className="font-display mt-4 text-5xl text-[#f9ab00]">{xp.toLocaleString()} XP</p>
+        <label className="mt-5 block text-left">
+          <span className="text-[11px] font-extrabold tracking-[0.22em] text-white/55">YOUR NAME</span>
+          <input
+            value={name}
+            maxLength={16}
+            placeholder="Type your name"
+            disabled={posted != null}
+            className="mt-1 w-full rounded-full border border-white/20 bg-white px-4 py-2.5 text-base font-extrabold text-[#102033] outline-none disabled:opacity-70"
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        {posted == null ? (
+          <button
+            className="mt-3 w-full rounded-full bg-[#f9ab00] px-5 py-2.5 font-extrabold text-[#102033]"
+            onClick={() => {
+              const entry = addScore(name, xp, runtime.elapsedMs)
+              setName(entry.name)
+              setPosted(entry.at)
+              setRows(readBoard())
+            }}
+          >
+            Add to leaderboard
+          </button>
+        ) : (
+          <p className="mt-3 text-sm font-bold text-[#5ee07a]">{rank >= 0 ? `You're number ${rank + 1} on this device.` : 'Saved on this device.'}</p>
+        )}
+        <div className="mt-4 max-h-52 overflow-auto">
+          <ScoreList rows={rows} highlight={posted} />
+        </div>
+        <div className="mt-5 flex gap-2">
+          <button className="rounded-full bg-white px-5 py-2 font-extrabold text-[#102033]" onClick={() => onAgain(cleanName(name))}>
+            Play again
+          </button>
+          <button className="rounded-full border border-white/30 px-5 py-2 font-bold" onClick={onMenu}>
+            Main menu
+          </button>
         </div>
       </div>
     </div>
@@ -1061,6 +1152,9 @@ function PauseMenu() {
 export function Interface() {
   const phase = useGame((state) => state.phase)
   const [help, setHelp] = useState(false)
+  const [boardOpen, setBoardOpen] = useState(false)
+  const [name, setName] = useState(readName)
+  const [rows, setRows] = useState(readBoard)
   const newGame = useGame((state) => state.newGame)
   const continueGame = useGame((state) => state.continueGame)
   const hasSave = useGame((state) => state.hasSave)
@@ -1118,8 +1212,30 @@ export function Interface() {
               Drive Airport Road to Tongpiny, find Scenius Hub, fix the cloud, wake the Wi-Fi, rescue a speaker, and fight
               through the rogue-bot checkpoints to open DevFest.
             </p>
-            <div className="mt-7 flex flex-wrap justify-center gap-3">
-              <button className="rounded-full bg-[#1a73e8] px-7 py-3 font-extrabold text-white shadow-lg shadow-[#1a73e8]/30 transition hover:scale-[1.03]" onClick={newGame}>
+            <label className="mt-6 block w-full max-w-xs text-left">
+              <span className="text-[11px] font-extrabold tracking-[0.22em] text-[#102033]/60">YOUR NAME</span>
+              <input
+                value={name}
+                maxLength={16}
+                placeholder="Type your name"
+                className="mt-1 w-full rounded-full border border-[#102033]/15 bg-white px-4 py-2.5 text-base font-extrabold text-[#102033] shadow outline-none focus:border-[#1a73e8]"
+                onChange={(event) => {
+                  const next = event.target.value
+                  setName(next)
+                  if (next.trim()) writeName(next)
+                }}
+              />
+            </label>
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              <button
+                className="rounded-full bg-[#1a73e8] px-7 py-3 font-extrabold text-white shadow-lg shadow-[#1a73e8]/30 transition hover:scale-[1.03]"
+                onClick={() => {
+                  const next = cleanName(name)
+                  setName(next)
+                  writeName(next)
+                  newGame(next)
+                }}
+              >
                 New game
               </button>
               <button
@@ -1132,7 +1248,24 @@ export function Interface() {
               <button className="rounded-full border-2 border-[#102033]/20 bg-white/40 px-7 py-3 font-bold text-[#102033] backdrop-blur transition hover:scale-[1.03]" onClick={() => setHelp((value) => !value)}>
                 How to play
               </button>
+              <button
+                className="rounded-full border-2 border-[#102033]/20 bg-white/40 px-7 py-3 font-bold text-[#102033] backdrop-blur transition hover:scale-[1.03]"
+                onClick={() => {
+                  setRows(readBoard())
+                  setBoardOpen((value) => !value)
+                }}
+              >
+                Leaderboard
+              </button>
             </div>
+            {boardOpen && (
+              <div className="mt-5 w-full max-w-md rounded-3xl bg-[#102033] p-4 text-left text-white shadow-2xl">
+                <p className="font-display text-2xl tracking-[0.12em] text-[#f9ab00]">LEADERBOARD</p>
+                <div className="mt-3 max-h-64 overflow-auto">
+                  <ScoreList rows={rows} />
+                </div>
+              </div>
+            )}
             {help && (
               <div className="mt-5 max-w-xl rounded-3xl bg-[#102033] p-4 text-left text-white shadow-2xl">
                 <ControlsCopy />
@@ -1169,25 +1302,7 @@ export function Interface() {
       {phase === 'eliminated' && <Eliminated />}
       {phase === 'paused' && <PauseMenu />}
 
-      {phase === 'victory' && (
-        <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-[#060b12]/80 p-4 backdrop-blur-sm">
-          <div className="hud-glass w-full max-w-lg rounded-3xl p-7 text-white">
-            <p className="text-xs font-extrabold tracking-[0.22em] text-[#8ab4f8]">24 OCTOBER 2026 · SCENIUS HUB · TONGPINY · JUBA</p>
-            <h2 className="font-display mt-2 text-6xl leading-none">Welcome to DevFest Juba</h2>
-            <p className="mt-3 text-lg text-white/85">You kept the city online. The keynote can start.</p>
-            <p className="mt-3 text-sm font-bold tracking-[0.18em] text-white/70">FINISHED IN {formatTime(runtime.elapsedMs)}</p>
-            <p className="font-display mt-4 text-5xl text-[#f9ab00]">{xp.toLocaleString()} XP</p>
-            <div className="mt-5 flex gap-2">
-              <button className="rounded-full bg-white px-5 py-2 font-extrabold text-[#102033]" onClick={newGame}>
-                Play again
-              </button>
-              <button className="rounded-full border border-white/30 px-5 py-2 font-bold" onClick={quitToMenu}>
-                Main menu
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {phase === 'victory' && <VictoryBoard xp={xp} onAgain={(player) => newGame(player)} onMenu={quitToMenu} />}
     </div>
   )
 }

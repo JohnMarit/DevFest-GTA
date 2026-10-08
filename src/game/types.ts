@@ -51,6 +51,8 @@ export type SaveData = {
   reserve: number
   /** Milliseconds spent in play, so a continued game keeps its clock. */
   elapsedMs: number
+  /** Name shown on the HUD and used when this run is posted to the leaderboard. */
+  playerName: string
 }
 
 export type Weapon = 'fists' | 'pistol'

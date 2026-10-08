@@ -327,7 +327,7 @@ export function Population() {
   const speakerOnBoard = useGame((state) => state.speakerOnBoard)
   const badges = useGame((state) => state.badges)
   const objectives = useMemo(
-    () => currentObjectives({ xp: 0, missions, cloudPieces, relays, badges, speakerOnBoard, musicOn: true, hasPistol: false, ammo: 0, reserve: 0, elapsedMs: 0 }),
+    () => currentObjectives({ xp: 0, missions, cloudPieces, relays, badges, speakerOnBoard, musicOn: true, hasPistol: false, ammo: 0, reserve: 0, elapsedMs: 0, playerName: '' }),
     [missions, cloudPieces, relays, badges, speakerOnBoard],
   )
   const showCloud = missions['fix-cloud'] === 'active'

@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard, Float } from '@react-three/drei'
-import { Group, Mesh, MeshStandardMaterial, PointLight, Raycaster, Vector3 } from 'three'
+import { Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PointLight, Raycaster, Vector3 } from 'three'
 import { playEmpty, playShot } from '../game/audio'
 import { pickBot, type Shot } from '../game/combat'
 import { COLORS, CRATES, PISTOL, type Crate as CrateDef } from '../game/content'
@@ -23,6 +23,7 @@ function edge(code: string) {
 const raycaster = new Raycaster()
 const origin = new Vector3()
 const direction = new Vector3()
+const projected = new Vector3()
 const up = new Vector3(0, 1, 0)
 const mid = new Vector3()
 const delta = new Vector3()
@@ -35,6 +36,7 @@ function PistolSystem() {
   const flash = useRef<Mesh>(null)
   const light = useRef<PointLight>(null)
   const spark = useRef<Mesh>(null)
+  const marker = useRef<Mesh>(null)
   const seenTrigger = useRef(0)
   const lastShot = useRef(0)
   const lastEmptyTip = useRef(0)
@@ -55,9 +57,17 @@ function PistolSystem() {
     const pistolOut = live && state.weapon === 'pistol' && state.hasPistol
     runtime.aiming = pistolOut && (pressed(2) || pad.aim)
 
-    // Hitscan ray straight out of the camera through the crosshair.
-    camera.getWorldDirection(direction)
-    origin.copy(camera.position)
+    // The target leads from the muzzle along where you are looking, so moving the
+    // mouse slides it onto a bot or a wall. It is not stuck to the middle of the screen.
+    const yaw = runtime.camYaw
+    const aimPitch = runtime.aiming ? runtime.pitch - 0.3 : runtime.pitch - 0.2
+    const cosPitch = Math.cos(aimPitch)
+    direction.set(Math.sin(yaw) * cosPitch, -Math.sin(aimPitch), -Math.cos(yaw) * cosPitch)
+    if (direction.lengthSq() < 1e-6) direction.set(0, 0, -1)
+    else direction.normalize()
+    const fx = Math.sin(yaw)
+    const fz = -Math.cos(yaw)
+    origin.set(runtime.x + Math.cos(yaw) * 0.32 + fx * 0.6, runtime.y + 1.35, runtime.z + Math.sin(yaw) * 0.32 + fz * 0.6)
     const shot = {
       ox: origin.x,
       oy: origin.y,
@@ -67,9 +77,46 @@ function PistolSystem() {
       dz: direction.z,
       range: PISTOL.range + 8,
     }
-    // Aimed shots follow the crosshair exactly; hip fire snaps to a bot inside a cone ahead (soft lock).
-    const target = pistolOut ? pickBot(shot, PISTOL.hitRadius, runtime.aiming ? 0 : PISTOL.hipCone) : null
+    // A shot counts only when this marker is actually on the bot.
+    const target = pistolOut ? pickBot(shot, PISTOL.hitRadius, 0) : null
     runtime.aimOnTarget = !!target
+
+    let ix = origin.x + direction.x * 14
+    let iy = origin.y + direction.y * 14
+    let iz = origin.z + direction.z * 14
+    if (target) {
+      ix = target.x
+      iy = 0.06
+      iz = target.z
+    } else if (pistolOut) {
+      raycaster.set(origin, direction)
+      raycaster.far = PISTOL.range
+      const solids = scene.getObjectByName('solids')
+      const block = solids ? raycaster.intersectObject(solids, true)[0] : undefined
+      if (block) {
+        ix = block.point.x
+        iy = block.point.y
+        iz = block.point.z
+      } else if (direction.y < -0.02) {
+        const dist = (0.06 - origin.y) / direction.y
+        if (dist > 0.4 && dist < PISTOL.range) {
+          ix = origin.x + direction.x * dist
+          iy = 0.06
+          iz = origin.z + direction.z * dist
+        }
+      }
+    }
+    const markY = target ? target.y + 1.15 : iy + 0.2
+    projected.set(ix, markY, iz).project(camera)
+    const visible = pistolOut && projected.z < 1
+    runtime.reticle.x = projected.x * 0.5 + 0.5
+    runtime.reticle.y = -projected.y * 0.5 + 0.5
+    runtime.reticle.on = visible
+    if (marker.current) {
+      marker.current.visible = visible
+      marker.current.position.set(ix, Math.max(0.06, iy), iz)
+      ;(marker.current.material as MeshBasicMaterial).color.set(target ? '#ff5146' : '#f4f7fb')
+    }
 
     // Holding the left button fires at the pistol's rate; a click always fires at least once.
     const wantsFire = pistolOut && (runtime.triggerStamp > seenTrigger.current || (holdFire.current && pressed(0)) || pad.fire)
@@ -171,6 +218,10 @@ function PistolSystem() {
       <mesh ref={spark} visible={false}>
         <octahedronGeometry args={[0.14, 0]} />
         <meshBasicMaterial color="#ffb347" toneMapped={false} />
+      </mesh>
+      <mesh ref={marker} visible={false} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.34, 0.52, 28]} />
+        <meshBasicMaterial color="#f4f7fb" transparent opacity={0.95} toneMapped={false} />
       </mesh>
     </group>
   )

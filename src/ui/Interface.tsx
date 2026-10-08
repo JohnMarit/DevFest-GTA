@@ -20,6 +20,16 @@ import { TouchControls } from './TouchControls'
 
 const XP_PER_LEVEL = 400
 
+function formatTime(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  const pad = (value: number) => String(value).padStart(2, '0')
+  if (hours > 0) return `${hours}:${pad(minutes)}:${pad(seconds)}`
+  return `${minutes}:${pad(seconds)}`
+}
+
 /* ------------------------------------------------------------------ */
 /* Frame data polled from the sim                                      */
 /* ------------------------------------------------------------------ */
@@ -36,6 +46,7 @@ function useHudPulse() {
     road: '',
     stamina: 1,
     kerb: false,
+    elapsedMs: 0,
     aiming: false,
     onTarget: false,
     /** 0..1 while reloading, -1 when idle. */
@@ -67,6 +78,7 @@ function useHudPulse() {
         road: runtime.roadName,
         stamina: runtime.stamina,
         kerb: now - runtime.edgeStamp < 700,
+        elapsedMs: runtime.elapsedMs,
         aiming: runtime.aiming,
         onTarget: runtime.aimOnTarget,
         reload: runtime.reloadUntil > 0 ? 1 - Math.min(1, (runtime.reloadUntil - now) / PISTOL.reloadMs) : -1,
@@ -97,7 +109,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, detail: boolean) {
     ctx.fillRect(road.x - road.w / 2 - 1.6, road.z - road.d / 2 - 1.6, road.w + 3.2, road.d + 3.2)
   }
   for (const road of ROADS) {
-    ctx.fillStyle = '#4b5059'
+    ctx.fillStyle = '#14161c'
     ctx.fillRect(road.x - road.w / 2, road.z - road.d / 2, road.w, road.d)
   }
   // Venue grounds.
@@ -390,14 +402,17 @@ function XpTicker() {
   )
 }
 
-function MissionHeader({ index, title, label, routeDistance }: { index: number; title: string; label: string; routeDistance: number }) {
+function MissionHeader({ index, title, label, routeDistance, elapsedMs }: { index: number; title: string; label: string; routeDistance: number; elapsedMs: number }) {
   return (
     <section className="pointer-events-none absolute left-4 top-4">
       <div className="hud-glass hud-tilt-left rounded-2xl px-4 py-2.5 text-white">
-        <p className="text-[10px] font-extrabold tracking-[0.26em] text-white/55">
-          <span className="text-[#f9ab00]">{'{ '}</span>
-          MISSION {String(index).padStart(2, '0')}
-          <span className="text-[#34a853]">{' }'}</span>
+        <p className="flex items-center justify-between gap-4 text-[10px] font-extrabold tracking-[0.26em] text-white/55">
+          <span>
+            <span className="text-[#f9ab00]">{'{ '}</span>
+            MISSION {String(index).padStart(2, '0')}
+            <span className="text-[#34a853]">{' }'}</span>
+          </span>
+          <span className="font-display text-base tracking-[0.12em] text-white">{formatTime(elapsedMs)}</span>
         </p>
         <h2 className="font-display mt-0.5 text-[1.5rem] leading-none text-outline">{title}</h2>
         {label && (
@@ -529,18 +544,40 @@ function Crosshair({ aiming, onTarget, reload }: { aiming: boolean; onTarget: bo
   const hasPistol = useGame((state) => state.hasPistol)
   const riding = useGame((state) => !!state.vehicleId)
   const [kick, setKick] = useState(0)
+  const [box, setBox] = useState({ x: 0.5, y: 0.5, on: false })
   useEffect(() => {
     const id = window.setInterval(() => {
       if (runtime.shotStamp > kick) setKick(runtime.shotStamp)
     }, 40)
     return () => window.clearInterval(id)
   }, [kick])
-  if (!hasPistol || weapon !== 'pistol' || riding) return null
+  useEffect(() => {
+    let frame = 0
+    const tick = () => {
+      frame = requestAnimationFrame(tick)
+      const next = runtime.reticle
+      setBox((prev) => (prev.on === next.on && Math.abs(prev.x - next.x) < 0.002 && Math.abs(prev.y - next.y) < 0.002 ? prev : { x: next.x, y: next.y, on: next.on }))
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  if (!hasPistol || weapon !== 'pistol' || riding || !box.on) return null
   const gap = aiming ? 7 : 12
   const color = onTarget ? '#ff5146' : '#ffffff'
   const tick = `absolute bg-current shadow-[0_0_4px_rgba(0,0,0,0.6)]`
   return (
-    <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ color }}>
+    <div
+      className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+      style={{ left: `${box.x * 100}%`, top: `${box.y * 100}%`, color }}
+    >
+      {onTarget && (
+        <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2">
+          <span className="absolute left-0 top-0 h-3 w-3 border-l-2 border-t-2 border-current" />
+          <span className="absolute right-0 top-0 h-3 w-3 border-r-2 border-t-2 border-current" />
+          <span className="absolute bottom-0 left-0 h-3 w-3 border-b-2 border-l-2 border-current" />
+          <span className="absolute bottom-0 right-0 h-3 w-3 border-b-2 border-r-2 border-current" />
+        </div>
+      )}
       <div key={kick} className={`relative h-12 w-12 ${kick ? 'animate-crosshair-kick' : ''}`}>
         <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current shadow-[0_0_4px_rgba(0,0,0,0.6)]" />
         <span className={`${tick} left-1/2 h-2.5 w-0.5 -translate-x-1/2`} style={{ top: `calc(50% - ${gap + 10}px)` }} />
@@ -554,6 +591,38 @@ function Crosshair({ aiming, onTarget, reload }: { aiming: boolean; onTarget: bo
           />
         )}
       </div>
+    </div>
+  )
+}
+
+function SessionButtons() {
+  const togglePause = useGame((state) => state.togglePause)
+  const quit = useGame((state) => state.quitToMenu)
+  const release = () => {
+    if (document.pointerLockElement) document.exitPointerLock()
+  }
+  return (
+    <div className="pointer-events-auto absolute left-1/2 top-3 z-30 flex -translate-x-1/2 gap-2">
+      <button
+        type="button"
+        className="rounded-full bg-[#102033]/75 px-3 py-1 text-[11px] font-extrabold tracking-[0.16em] text-white shadow-lg backdrop-blur"
+        onClick={() => {
+          release()
+          togglePause()
+        }}
+      >
+        PAUSE
+      </button>
+      <button
+        type="button"
+        className="rounded-full bg-[#102033]/75 px-3 py-1 text-[11px] font-extrabold tracking-[0.16em] text-white shadow-lg backdrop-blur"
+        onClick={() => {
+          release()
+          quit()
+        }}
+      >
+        EXIT
+      </button>
     </div>
   )
 }
@@ -602,7 +671,7 @@ function DangerStrip() {
   const danger = useGame((state) => state.danger)
   if (!danger) return null
   return (
-    <div className="pointer-events-none absolute left-4 top-[7.25rem] lg:left-1/2 lg:top-4 lg:-translate-x-1/2">
+    <div className="pointer-events-none absolute left-4 top-[7.25rem] lg:left-1/2 lg:top-14 lg:-translate-x-1/2">
       <div className="animate-danger flex items-center gap-3 rounded-full border border-[#ff8a80]/60 bg-[#ea4335] px-5 py-1.5 text-white shadow-xl">
         <span className="h-2 w-2 animate-ping rounded-full bg-white" />
         <span className="font-display text-lg leading-none tracking-[0.12em]">{danger.toUpperCase()}</span>
@@ -651,6 +720,7 @@ function MissionPassed() {
         <div className="animate-banner-text text-center text-white">
           <p className="font-display text-[3.4rem] leading-none tracking-[0.08em] text-[#f9ab00] text-outline sm:text-[4.6rem]">MISSION PASSED</p>
           <p className="mt-1 text-lg font-bold text-white/90">{banner.title}</p>
+          <p className="mt-1 text-sm font-bold tracking-[0.16em] text-white/75">REACHED IN {formatTime(banner.reachedMs)}</p>
           <p className="font-display mt-1 text-3xl text-[#5ee07a] text-outline">+{banner.reward} XP</p>
         </div>
       </div>
@@ -702,7 +772,7 @@ function Hud() {
   }
   return (
     <>
-      <MissionHeader index={index} title={active?.title ?? 'City Quest'} label={pulse.label} routeDistance={pulse.routeDistance} />
+      <MissionHeader index={index} title={active?.title ?? 'City Quest'} label={pulse.label} routeDistance={pulse.routeDistance} elapsedMs={pulse.elapsedMs} />
       <XpTicker />
       <DangerStrip />
       <Vitals stamina={pulse.stamina} road={pulse.road} onRoad={pulse.onRoad} aiming={pulse.aiming} />
@@ -831,7 +901,7 @@ function MissionList() {
 function ControlsCopy() {
   const rows: [string, string][] = [
     ['W A S D', 'Move relative to the camera; your character turns to face the way you go. In a vehicle: throttle, steer, brake (then reverse)'],
-    ['Mouse', 'Orbit the camera after you click the city. In a vehicle it peeks around and settles back behind the car'],
+    ['Mouse', 'Orbit the camera after you click the city. With the pistol out, look to slide the target onto what you want to shoot'],
     ['Kerbs', 'Vehicles stay on tarmac: streets, lots and tracks. Park and walk for anything on the sand'],
     ['Shift', 'Sprint while stamina (blue bar) lasts'],
     ['Space', 'Jump, or handbrake to slide a vehicle through a corner'],
@@ -839,9 +909,9 @@ function ControlsCopy() {
     ['F', 'Enter or leave a boda, tuk-tuk, or SUV'],
     ['Q / click', 'Punch rogue bots. Ramming at speed works too'],
     ['Pistol', 'Grab the Pulse Pistol crate at the Motor Station office. 2 draws it, 1 puts it away'],
-    ['RMB', 'Hold to aim over the shoulder; the crosshair turns red on a bot'],
-    ['LMB', 'Shoot (hold to keep firing). R reloads; orange crates near checkpoints carry ammo'],
-    ['Phone', 'Drag to look, stick to move. FIRE shoots, AIM holds the sight, USE talks, RIDE gets in'],
+    ['RMB', 'Hold to aim over the shoulder. The target turns red and follows a bot while it sits on them'],
+    ['LMB', 'Shoot whatever the target is on. R reloads; orange crates near checkpoints carry ammo'],
+    ['Phone', 'Drag to move the target onto a bot. FIRE shoots, AIM holds the sight, USE talks, RIDE gets in'],
     ['Esc', 'Pause and open the map'],
   ]
   return (
@@ -1087,6 +1157,7 @@ export function Interface() {
       )}
 
       {(phase === 'playing' || phase === 'paused' || phase === 'eliminated') && <Hud />}
+      {phase === 'playing' && <SessionButtons />}
       <TouchControls />
       {phase === 'playing' && (
         <>
@@ -1104,6 +1175,7 @@ export function Interface() {
             <p className="text-xs font-extrabold tracking-[0.22em] text-[#8ab4f8]">24 OCTOBER 2026 · SCENIUS HUB · TONGPINY · JUBA</p>
             <h2 className="font-display mt-2 text-6xl leading-none">Welcome to DevFest Juba</h2>
             <p className="mt-3 text-lg text-white/85">You kept the city online. The keynote can start.</p>
+            <p className="mt-3 text-sm font-bold tracking-[0.18em] text-white/70">FINISHED IN {formatTime(runtime.elapsedMs)}</p>
             <p className="font-display mt-4 text-5xl text-[#f9ab00]">{xp.toLocaleString()} XP</p>
             <div className="mt-5 flex gap-2">
               <button className="rounded-full bg-white px-5 py-2 font-extrabold text-[#102033]" onClick={newGame}>

@@ -69,6 +69,13 @@ const regen = { current: 0 }
 export function Rules() {
   useFrame(() => {
     const state = useGame.getState()
+    const nowMs = performance.now()
+    if (state.phase === 'playing') {
+      if (runtime.elapsedMark > 0) runtime.elapsedMs += nowMs - runtime.elapsedMark
+      runtime.elapsedMark = nowMs
+    } else {
+      runtime.elapsedMark = 0
+    }
     if (edge('Escape')) {
       if (state.phase === 'playing' || state.phase === 'paused') {
         if (document.pointerLockElement) document.exitPointerLock()
@@ -320,7 +327,7 @@ export function Population() {
   const speakerOnBoard = useGame((state) => state.speakerOnBoard)
   const badges = useGame((state) => state.badges)
   const objectives = useMemo(
-    () => currentObjectives({ xp: 0, missions, cloudPieces, relays, badges, speakerOnBoard, musicOn: true, hasPistol: false, ammo: 0, reserve: 0 }),
+    () => currentObjectives({ xp: 0, missions, cloudPieces, relays, badges, speakerOnBoard, musicOn: true, hasPistol: false, ammo: 0, reserve: 0, elapsedMs: 0 }),
     [missions, cloudPieces, relays, badges, speakerOnBoard],
   )
   const showCloud = missions['fix-cloud'] === 'active'

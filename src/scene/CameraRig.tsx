@@ -75,10 +75,8 @@ export function CameraRig() {
     const pitch = runtime.pitch
     const absSpeed = Math.abs(runtime.speed)
     const aiming = runtime.aiming && !runtime.vehicleId
-    const gun =
-      !runtime.vehicleId && useGame.getState().hasPistol && useGame.getState().weapon === 'pistol'
-    // Gun out: look past the character so the crosshair sits in the world and moves as you turn.
-    const want = aiming ? 1 : gun ? 0.75 : 0
+    // Over-the-shoulder only while aiming. Releasing the aim button returns the camera behind you.
+    const want = aiming ? 1 : 0
     aimBlend.current += (want - aimBlend.current) * Math.min(1, step * 9)
     const a = aimBlend.current
     const distance = runtime.vehicleId ? 7.8 + Math.min(2.6, absSpeed * 0.09) : 6.4

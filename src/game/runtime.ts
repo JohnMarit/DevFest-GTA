@@ -51,6 +51,12 @@ export const runtime = {
   reloadUntil: 0,
   /** True while the centre crosshair is over a live bot. */
   aimOnTarget: false,
+  /** Screen position (0..1) of the bot the sights have settled on. */
+  reticle: { x: 0.5, y: 0.5, on: false },
+  /** Time spent playing, in ms. Pauses when the game is not in play. */
+  elapsedMs: 0,
+  /** performance.now() of the last timer tick, or 0 while frozen. */
+  elapsedMark: 0,
   /** Last tracer, world space, consumed by the tracer renderer. */
   tracer: { fromX: 0, fromY: 0, fromZ: 0, toX: 0, toY: 0, toZ: 0, stamp: 0 },
 }

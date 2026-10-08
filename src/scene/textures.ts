@@ -186,10 +186,10 @@ export function asphaltTexture() {
   canvas.height = size
   const g = canvas.getContext('2d')
   if (!g) return finish(canvas)
-  g.fillStyle = '#454a52'
+  g.fillStyle = '#101216'
   g.fillRect(0, 0, size, size)
   for (let i = 0; i < 4200; i += 1) {
-    g.fillStyle = rand() > 0.5 ? 'rgba(20,22,26,0.25)' : 'rgba(170,176,186,0.14)'
+    g.fillStyle = rand() > 0.5 ? 'rgba(0,0,0,0.45)' : 'rgba(70,74,82,0.35)'
     const s = 1 + rand() * 1.6
     g.fillRect(rand() * size, rand() * size, s, s)
   }

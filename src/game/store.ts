@@ -15,6 +15,7 @@ const emptySave = (): SaveData => ({
   hasPistol: false,
   ammo: 0,
   reserve: 0,
+  elapsedMs: 0,
 })
 
 function readSave(): SaveData | null {
@@ -49,7 +50,7 @@ type GameStore = SaveData & {
   respawnPoint: { x: number; z: number }
   district: string | null
   /** Big "mission passed" banner; cleared by the HUD. */
-  banner: { title: string; reward: number; stamp: number } | null
+  banner: { title: string; reward: number; stamp: number; reachedMs: number } | null
   /** Slide-in card when a mission becomes active; cleared by the HUD. */
   missionStart: { id: MissionId; title: string; summary: string; stamp: number } | null
   /** Equipped weapon on foot. */
@@ -125,6 +126,9 @@ function resetRuntime() {
   runtime.shotStamp = 0
   runtime.reloadUntil = 0
   runtime.aimOnTarget = false
+  runtime.reticle.on = false
+  runtime.elapsedMs = 0
+  runtime.elapsedMark = 0
   runtime.tracer.stamp = 0
   vehicleMarks.clear()
 }
@@ -146,6 +150,7 @@ function snapshot(state: GameStore): SaveData {
     hasPistol: state.hasPistol,
     ammo: state.ammo,
     reserve: state.reserve,
+    elapsedMs: runtime.elapsedMs,
   }
 }
 
@@ -159,7 +164,7 @@ function reward(state: GameStore, id: MissionId, next: MissionId | null, toast: 
       ...(next ? { [next]: 'active' as const } : {}),
     },
     toast,
-    banner: { title: def?.title ?? 'Mission', reward: def?.reward ?? 0, stamp: performance.now() },
+    banner: { title: def?.title ?? 'Mission', reward: def?.reward ?? 0, stamp: performance.now(), reachedMs: runtime.elapsedMs },
     missionStart: next ? startCard(next) : null,
     speakerOnBoard: id === 'speaker-rescue' ? false : state.speakerOnBoard,
   }
@@ -355,6 +360,7 @@ export const useGame = create<GameStore>((set, get) => ({
     const saved = readSave()
     if (!saved) return
     resetRuntime()
+    runtime.elapsedMs = saved.elapsedMs
     set({
       ...saved,
       phase: 'loading',

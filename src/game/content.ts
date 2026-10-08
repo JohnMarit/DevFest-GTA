@@ -345,10 +345,8 @@ export const PISTOL = {
   startReserve: 48,
   maxReserve: 144,
   reloadMs: 1100,
-  /** Bots this far from the aim ray (metres) count as a hit while aiming. */
-  hitRadius: 0.75,
-  /** Hip fire soft-lock: half-angle (radians) of the cone in front of the camera. */
-  hipCone: 0.2,
+  /** The moving target has to be this close to a bot (metres) for the shot to hit. */
+  hitRadius: 1.05,
   crateAmmo: 24,
   crateRespawnSeconds: 45,
 }

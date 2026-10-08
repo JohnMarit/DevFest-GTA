@@ -49,6 +49,8 @@ export type SaveData = {
   /** Rounds in the clip and in reserve. */
   ammo: number
   reserve: number
+  /** Milliseconds spent in play, so a continued game keeps its clock. */
+  elapsedMs: number
 }
 
 export type Weapon = 'fists' | 'pistol'

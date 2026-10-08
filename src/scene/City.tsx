@@ -47,30 +47,30 @@ function Road() {
         for (let offset = -length / 2 + 3; offset < length / 2 - 3; offset += 7) dashes.push(offset)
         return (
           <group key={`${road.x}-${road.z}-${road.w}`} position={[road.x, 0, road.z]}>
-            <mesh position={[0, 0.08, 0]} receiveShadow castShadow>
-              <boxGeometry args={[road.w + 1.8, 0.16, road.d + 1.8]} />
+            <mesh position={[0, 0.045, 0]} receiveShadow castShadow>
+              <boxGeometry args={[road.w + 1.8, 0.1, road.d + 1.8]} />
               <meshStandardMaterial color={COLORS.curb} roughness={1} />
             </mesh>
-            <mesh position={[0, 0.07, 0]} receiveShadow>
-              <boxGeometry args={[road.w, 0.08, road.d]} />
-              <meshStandardMaterial map={maps[index]} roughness={0.95} />
+            <mesh position={[0, 0.09, 0]} receiveShadow>
+              <boxGeometry args={[road.w, 0.06, road.d]} />
+              <meshStandardMaterial map={maps[index]} color="#101216" roughness={0.92} />
             </mesh>
             {dashes.map((offset) => (
               <mesh
                 key={offset}
-                position={vertical ? [0, 0.115, offset] : [offset, 0.115, 0]}
+                position={vertical ? [0, 0.13, offset] : [offset, 0.13, 0]}
               >
-                <boxGeometry args={vertical ? [0.2, 0.01, 3] : [3, 0.01, 0.2]} />
-                <meshStandardMaterial color="#f3ead0" roughness={0.8} />
+                <boxGeometry args={vertical ? [0.2, 0.012, 3] : [3, 0.012, 0.2]} />
+                <meshStandardMaterial color="#f7f7f2" roughness={0.8} />
               </mesh>
             ))}
             {[-1, 1].map((side) => (
               <mesh
                 key={side}
-                position={vertical ? [side * (road.w / 2 - 0.3), 0.115, 0] : [0, 0.115, side * (road.d / 2 - 0.3)]}
+                position={vertical ? [side * (road.w / 2 - 0.35), 0.13, 0] : [0, 0.13, side * (road.d / 2 - 0.35)]}
               >
-                <boxGeometry args={vertical ? [0.14, 0.01, road.d * 0.98] : [road.w * 0.98, 0.01, 0.14]} />
-                <meshStandardMaterial color="#f3ead0" roughness={0.8} />
+                <boxGeometry args={vertical ? [0.16, 0.012, road.d * 0.98] : [road.w * 0.98, 0.012, 0.16]} />
+                <meshStandardMaterial color="#f7f7f2" roughness={0.8} />
               </mesh>
             ))}
           </group>
